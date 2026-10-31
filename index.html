@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Two Fs Make a D</title>
+<meta name="description" content="A silent, no-timer merge game where bad grades combine into better ones. Two Fs make a D.">
+<meta property="og:title" content="Two Fs Make a D">
+<meta property="og:description" content="A silent, no-timer merge game where bad grades combine into better ones.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gochi+Hand&family=Patrick+Hand&display=swap">
+<style>
+  /* Layout: a notebook page in light mode, a chalkboard in dark. Report card on the left, the jar of grades on the right. */
+  :root {
+    --bg: #f6faff; --rule: #c6dbef; --margin: #ee8b9b; --ink: #1f2f6b; --soft: #55639a;
+    --red: #cf1f33; --hi: #ffe94d; --card: #ffffff; --line: #1f2f6b;
+    --doc: #ffffff; --doc-ink: #202124; --doc-soft: #6b6f76; --doc-line: #e1e3e6;
+    --display: "Gochi Hand", "Comic Sans MS", cursive;
+    --body: "Patrick Hand", "Comic Sans MS", cursive;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1d3a32; --rule: #27473e; --margin: #2f5549; --ink: #f1f5e8; --soft: #b5c9b9;
+      --red: #ffa3a3; --hi: #ffe98a; --card: #234439; --line: #f1f5e8;
+      --doc: #1f2023; --doc-ink: #e6e7e9; --doc-soft: #9a9ea5; --doc-line: #36383c;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1d3a32; --rule: #27473e; --margin: #2f5549; --ink: #f1f5e8; --soft: #b5c9b9;
+    --red: #ffa3a3; --hi: #ffe98a; --card: #234439; --line: #f1f5e8;
+    --doc: #1f2023; --doc-ink: #e6e7e9; --doc-soft: #9a9ea5; --doc-line: #36383c;
+    color-scheme: dark;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    overflow: hidden;
+    color: var(--ink);
+    font: 18px/1.3 var(--body);
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(90deg, transparent 0 calc(max(16px, env(safe-area-inset-left, 0px)) - 6px), var(--margin) 0 calc(max(16px, env(safe-area-inset-left, 0px)) - 4px), transparent 0),
+      repeating-linear-gradient(180deg, transparent 0 29px, var(--rule) 29px 30px);
+  }
+  #app {
+    height: 100%;
+    max-width: 960px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(230px, 280px) minmax(0, 1fr);
+    gap: 20px;
+    padding-block: 12px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  #side { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; padding: 2px; }
+  h1 { margin: 0; font: 400 38px/1 var(--display); text-wrap: balance; transform: rotate(-1.5deg); }
+  h1 mark { background: var(--hi); color: #1f2f6b; padding: 0 5px; border-radius: 3px; }
+  #scores { display: flex; gap: 22px; }
+  .stat small { display: block; color: var(--soft); font-size: 15px; letter-spacing: .04em; }
+  .stat b { font: 400 30px/1 var(--body); font-variant-numeric: tabular-nums; }
+  #score { color: var(--red); }
+
+  #ladder { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+  #ladder li { display: flex; align-items: center; gap: 9px; color: var(--soft); }
+  #ladder li.got { color: var(--ink); }
+  .chip {
+    flex: none; width: 26px; height: 26px; border-radius: 50%;
+    display: grid; place-items: center;
+    font: 400 15px/1 var(--display); color: #1c2450;
+    border: 1.5px dashed var(--soft); background: transparent; opacity: .75;
+  }
+  #ladder li.got .chip { background: var(--chip); border: 1.5px solid #1c2450; opacity: 1; }
+  #ladder li span.tag { min-width: 0; }
+
+  #tools { display: flex; flex-wrap: wrap; gap: 8px; }
+  button {
+    font: 19px/1 var(--body); color: var(--ink); background: var(--card);
+    border: 2px solid var(--line); border-radius: 12px 9px 13px 8px;
+    padding: 8px 12px; cursor: pointer; touch-action: manipulation;
+  }
+  button:hover:not(:disabled) { background: var(--hi); color: #1f2f6b; }
+  button:disabled { opacity: .45; cursor: default; }
+  button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
+  button.on { background: var(--hi); color: #1f2f6b; }
+  #how { margin: 0; color: var(--soft); font-size: 16.5px; line-height: 1.25; }
+  #how kbd { font: inherit; color: var(--ink); }
+
+  #stage { position: relative; min-width: 0; min-height: 0; }
+  canvas#game { position: absolute; touch-action: none; cursor: crosshair; user-select: none; -webkit-user-select: none; }
+  canvas#game.erasing { cursor: cell; }
+
+  #over { position: absolute; inset: 0; display: grid; place-items: center; }
+  #sheet {
+    width: min(320px, 90%); background: var(--card); border: 2px solid var(--line);
+    border-radius: 8px; padding: 20px; display: grid; gap: 10px; text-align: center;
+    box-shadow: 5px 6px 0 color-mix(in srgb, var(--line) 25%, transparent);
+  }
+  #stamp {
+    justify-self: center; font: 400 38px/1 var(--display); color: var(--red);
+    border: 3px solid var(--red); border-radius: 8px; padding: 4px 12px; transform: rotate(-5deg);
+  }
+  #sheet p { margin: 0; }
+  #finalScore { font: 400 44px/1 var(--body); font-variant-numeric: tabular-nums; }
+
+  #cover {
+    position: fixed; inset: 0; z-index: 50; background: var(--doc); color: var(--doc-ink);
+    display: flex; flex-direction: column;
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    padding-block: 16px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  #coverInner { width: 100%; max-width: 720px; margin: 0 auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+  #coverBar { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--doc-line); padding-bottom: 8px; }
+  #noteTitle { flex: 1; min-width: 0; font-family: inherit; font-size: 20px; font-weight: 600; line-height: 1.3; color: inherit; background: none; border: 0; padding: 2px 0; }
+  #noteDate { color: var(--doc-soft); font-size: 13px; white-space: nowrap; }
+  #done { font-family: inherit; font-size: 13px; line-height: 1; color: var(--doc-soft); background: none; border: 1px solid var(--doc-line); border-radius: 4px; padding: 6px 10px; }
+  #done:hover { background: none; color: var(--doc-ink); }
+  #notes { flex: 1; min-height: 0; width: 100%; resize: none; font: inherit; color: inherit; background: none; border: 0; outline: none; }
+
+  @media (max-width: 680px) {
+    #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 8px; padding-block: 8px; }
+    #side { overflow: visible; gap: 7px; }
+    #top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    h1 { font-size: 25px; }
+    #scores { gap: 14px; }
+    .stat small { font-size: 12px; }
+    .stat b { font-size: 22px; }
+    #ladder { display: flex; justify-content: space-between; gap: 2px; }
+    #ladder li span.tag { display: none; }
+    .chip { width: 30px; height: 30px; }
+    #how { display: none; }
+    #tools button { flex: 1; padding: 7px 4px; font-size: 17px; }
+  }
+  @media (max-height: 610px) and (min-width: 681px) {
+    #how { display: none; }
+    #ladder li { font-size: 16px; }
+    .chip { width: 22px; height: 22px; font-size: 13px; }
+  }
+</style>
+
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div id="top">
+      <h1>Two Fs Make <mark>a D</mark></h1>
+      <div id="scores" style="margin-top:10px">
+        <div class="stat"><small>Score</small><b id="score">0</b></div>
+        <div class="stat"><small>Best</small><b id="best">0</b></div>
+      </div>
+    </div>
+    <ol id="ladder" aria-label="Grades you have reached"></ol>
+    <div id="tools">
+      <button id="eraser" type="button">Eraser × 1</button>
+      <button id="hide" type="button">Hide game</button>
+      <button id="restart" type="button">New term</button>
+    </div>
+    <p id="how">Drop two matching grades together and they turn into a better one. Keep the pile below the detention line. There is no timer and no sound, so stop whenever you like.<br><kbd>← →</kbd> aim · <kbd>Space</kbd> drop · <kbd>E</kbd> eraser · <kbd>Esc</kbd> hide</p>
+  </aside>
+  <main id="stage">
+    <canvas id="game" role="img" aria-label="A jar of grades. Move the pointer to aim and click to drop."></canvas>
+    <div id="over" hidden>
+      <div id="sheet">
+        <div id="stamp">Detention!</div>
+        <div id="finalScore">0</div>
+        <p id="finalGrade"></p>
+        <p id="finalNote"></p>
+        <button id="again" type="button">Start a new term</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<section id="cover" hidden>
+  <div id="coverInner">
+    <div id="coverBar">
+      <input id="noteTitle" type="text" value="Class notes" aria-label="Notes title">
+      <span id="noteDate"></span>
+      <button id="done" type="button">Done</button>
+    </div>
+    <textarea id="notes" aria-label="Notes" spellcheck="false"></textarea>
+  </div>
+</section>
+
+<script>
+(function () {
+  var W = 400, H = 600, LEFT = 10, RIGHT = 390, FLOOR = 590, LINE = 100, HOLD_Y = 60;
+  var GRAVITY = 1500, SUB = 1 / 240, KEY = 'two-fs-game', NOTES_KEY = 'two-fs-notes', BALL_INK = '#1c2450';
+
+  var TIERS = [
+    { g: 'F', r: 17, c: '#ff9aa8', v: 2, mood: -1, tag: 'Oh no' },
+    { g: 'D', r: 23, c: '#ffb678', v: 5, mood: -.4, tag: 'Passing, barely' },
+    { g: 'C', r: 30, c: '#ffe066', v: 10, mood: 0, tag: 'Fine. It’s fine.' },
+    { g: 'B', r: 38, c: '#b6ea6f', v: 20, mood: .5, tag: 'Solid' },
+    { g: 'A', r: 47, c: '#74e0c4', v: 40, mood: .8, tag: 'Fridge-worthy' },
+    { g: 'A+', r: 57, c: '#86c9ff', v: 80, mood: 1, tag: 'Show-off' },
+    { g: '★', r: 68, c: '#ffd23f', v: 160, mood: 1, tag: 'Gold star', shape: 'star' },
+    { g: '♛', r: 80, c: '#c9a6ff', v: 320, mood: 1, tag: 'Honor roll', shape: 'crown' },
+    { g: '☀', r: 94, c: '#ffb52e', v: 640, mood: 1, tag: 'Summer break', shape: 'sun' }
+  ];
+  var CHEERS = [
+    ['Two Fs make a D!'],
+    ['Two Ds make a C!', 'Much improved!'],
+    ['A B! Nice!', 'See me after class (for a high five)'],
+    ['A real A!', 'Fridge-worthy!'],
+    ['A+! Show your family!', 'Top of the class!'],
+    ['GOLD STAR!', 'Teacher’s pet!'],
+    ['HONOR ROLL!', 'They framed it!'],
+    ['SUMMER BREAK!!!']
+  ];
+  var CLOSERS = [
+    'Shows promise. Mostly promise.',
+    'A real effort. Try again?',
+    'Getting somewhere!',
+    'Very respectable pile.',
+    'Top marks for stacking.',
+    'Your family would like this on the fridge.',
+    'The gold star committee is impressed.',
+    'Honor roll material. Truly.',
+    'You earned summer. Go outside.'
+  ];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $('game'), ctx = canvas.getContext('2d'), stage = $('stage');
+  var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var balls = [], floats = [], bits = [];
+  var score = 0, best = 0, top = 0, erasers = 1, nextEraser = 500, cur = 0, next = 0;
+  var aimX = W / 2, cooldown = 0, danger = 0, over = false, erasing = false, covered = false;
+  var combo = 0, sinceMerge = 9, dirty = false, saveClock = 0, scale = 1, seedN = 1;
+  var keys = { left: false, right: false }, theme = {}, themeClock = 0, pointerOn = false;
+
+  function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function fetchStore(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+  function pick() {
+    var n = Math.random() * 14;
+    return n < 5 ? 0 : n < 9 ? 1 : n < 12 ? 2 : 3;
+  }
+  function makeBall(t, x, y) {
+    return { t: t, x: x, y: y, px: x, py: y, r: TIERS[t].r, tr: TIERS[t].r, age: 0, seed: (seedN++ * 2.399) % 6.28,
+      tilt: 0, base: (Math.random() - .5) * .3, blinkIn: 1 + Math.random() * 5, blink: 0, pop: 0, dead: false, touching: false };
+  }
+
+  /* ---------- report card ---------- */
+  var ladderEls = TIERS.map(function (t) {
+    var li = document.createElement('li');
+    var chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.textContent = t.g;
+    chip.style.setProperty('--chip', t.c);
+    var tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.textContent = t.tag;
+    li.title = t.tag;
+    li.appendChild(chip); li.appendChild(tag);
+    $('ladder').appendChild(li);
+    return li;
+  });
+  function paintHud() {
+    $('score').textContent = score;
+    $('best').textContent = best;
+    $('eraser').textContent = 'Eraser × ' + erasers;
+    $('eraser').disabled = !erasers && !erasing;
+    $('eraser').className = erasing ? 'on' : '';
+    ladderEls.forEach(function (li, i) { li.className = i <= top ? 'got' : ''; });
+    canvas.className = erasing ? 'erasing' : '';
+  }
+  function addScore(n) {
+    score += n;
+    if (score > best) best = score;
+    while (score >= nextEraser) {
+      nextEraser += 500;
+      if (erasers < 3) { erasers++; say(W / 2, 140, 'Eraser earned!', true); }
+    }
+  }
+
+  /* ---------- save and restore ---------- */
+  function save() {
+    store(KEY, JSON.stringify({
+      best: best, score: score, top: top, erasers: erasers, nextEraser: nextEraser, cur: cur, next: next, over: over,
+      balls: over ? [] : balls.map(function (b) { return [b.t, Math.round(b.x), Math.round(b.y)]; })
+    }));
+    dirty = false;
+  }
+  function validTier(t) { return Number.isInteger(t) && t >= 0 && t < TIERS.length; }
+  function load() {
+    var raw = fetchStore(KEY), s;
+    if (!raw) return false;
+    try { s = JSON.parse(raw); } catch (e) { return false; }
+    if (!s || !Array.isArray(s.balls)) return false;
+    best = +s.best || 0;
+    if (s.over || !s.balls.length) return false;
+    score = +s.score || 0;
+    top = validTier(s.top) ? s.top : 0;
+    erasers = Math.min(3, Math.max(0, +s.erasers || 0));
+    nextEraser = +s.nextEraser || 500;
+    cur = validTier(s.cur) ? s.cur : 0;
+    next = validTier(s.next) ? s.next : 0;
+    balls = s.balls.filter(function (b) { return validTier(b[0]); }).map(function (b) {
+      var ball = makeBall(b[0], +b[1] || W / 2, +b[2] || 300);
+      ball.age = 9;
+      return ball;
+    });
+    return true;
+  }
+  function newGame() {
+    var keepBest = best;
+    balls = []; floats = []; bits = [];
+    score = 0; top = 2; erasers = 1; nextEraser = 500; danger = 0; over = false; erasing = false; combo = 0;
+    best = keepBest;
+    cur = 0; next = pick(); cooldown = .6;
+    /* The opening pile shows the rule: the two Fs on the right land on each other and merge. */
+    balls.push(makeBall(2, 62, 555), makeBall(1, 135, 565), makeBall(0, 232, 572), makeBall(0, 234, 430));
+    balls.forEach(function (b) { b.age = 9; });
+    $('over').hidden = true;
+    dirty = true;
+    paintHud();
+  }
+
+  /* ---------- physics: position-based, so stacks stay calm ---------- */
+  function step(dt) {
+    var i, j, a, b, n = balls.length, merges = [];
+    for (i = 0; i < n; i++) {
+      a = balls[i];
+      var vx = a.x - a.px, vy = a.y - a.py, sp = Math.hypot(vx, vy);
+      if (sp > 6) { vx *= 6 / sp; vy *= 6 / sp; }
+      a.px = a.x; a.py = a.y;
+      a.x += vx * .9995;
+      a.y += vy * .9995 + GRAVITY * dt * dt;
+      if (a.r < a.tr) a.r = Math.min(a.tr, a.r + 60 * dt);
+      a.touching = false;
+      a.age += dt;
+    }
+    for (var it = 0; it < 3; it++) {
+      for (i = 0; i < n; i++) {
+        a = balls[i];
+        if (a.dead) continue;
+        for (j = i + 1; j < n; j++) {
+          b = balls[j];
+          if (b.dead) continue;
+          var dx = b.x - a.x, dy = b.y - a.y, rr = a.r + b.r, d2 = dx * dx + dy * dy;
+          if (d2 >= rr * rr) continue;
+          if (a.t === b.t) {
+            a.dead = b.dead = true;
+            merges.push([a, b]);
+            break;
+          }
+          var d = Math.sqrt(d2) || .001, over_ = (rr - d) * .8;
+          var ma = a.r * a.r, mb = b.r * b.r, ta = mb / (ma + mb), tb = ma / (ma + mb);
+          var ux = dx / d, uy = dy / d;
+          a.x -= ux * over_ * ta; a.y -= uy * over_ * ta;
+          b.x += ux * over_ * tb; b.y += uy * over_ * tb;
+          a.touching = b.touching = true;
+        }
+        if (a.dead) continue;
+        if (a.x < LEFT + a.r) { a.x = LEFT + a.r; a.touching = true; }
+        if (a.x > RIGHT - a.r) { a.x = RIGHT - a.r; a.touching = true; }
+        if (a.y > FLOOR - a.r) { a.y = FLOOR - a.r; a.touching = true; }
+      }
+    }
+    for (i = 0; i < n; i++) {
+      a = balls[i];
+      if (a.touching) { a.px += (a.x - a.px) * .035; a.py += (a.y - a.py) * .012; }
+    }
+    if (merges.length) {
+      balls = balls.filter(function (x) { return !x.dead; });
+      merges.forEach(merge);
+    }
+  }
+
+  function merge(pair) {
+    var a = pair[0], b = pair[1], x = (a.x + b.x) / 2, y = (a.y + b.y) / 2, t = a.t + 1;
+    dirty = true;
+    combo = sinceMerge < .9 ? combo + 1 : 1;
+    sinceMerge = 0;
+    if (t >= TIERS.length) {
+      addScore(1000 * combo);
+      burst(x, y, 90, true);
+      say(x, y, 'School’s out! +1000', true);
+      paintHud();
+      return;
+    }
+    var nb = makeBall(t, x, y);
+    nb.r = Math.max(a.r, b.r);
+    nb.pop = 1;
+    nb.px = x - ((a.x - a.px) + (b.x - b.px)) / 2;
+    nb.py = y - ((a.y - a.py) + (b.y - b.py)) / 2;
+    balls.push(nb);
+    addScore(TIERS[t].v * combo);
+    if (t > top) top = t;
+    var pool = CHEERS[t - 1];
+    var line = pool[Math.floor(Math.random() * pool.length)];
+    if (combo > 1) line = 'Combo ×' + combo + '! ' + line;
+    say(x, y - nb.tr - 6, line, t >= 5);
+    burst(x, y, t >= 6 ? 60 : 8 + t * 2, t >= 6);
+    paintHud();
+  }
+
+  function say(x, y, text, big) {
+    floats.push({ x: x, y: y, text: text, life: 1.5, big: big });
+    if (floats.length > 5) floats.shift();
+  }
+  function burst(x, y, n, party) {
+    if (calm) return;
+    var colors = ['#ff9aa8', '#ffb678', '#ffe066', '#b6ea6f', '#74e0c4', '#86c9ff', '#c9a6ff'];
+    for (var i = 0; i < n; i++) {
+      var ang = Math.random() * 6.283, sp = (party ? 120 : 50) + Math.random() * (party ? 340 : 110);
+      bits.push({ x: x, y: y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 60, life: .5 + Math.random() * (party ? 1 : .35),
+        s: party ? 5 : 3, c: colors[i % colors.length] });
+    }
+  }
+
+  /* ---------- actions ---------- */
+  function clampAim() {
+    var r = TIERS[cur].r;
+    aimX = Math.max(LEFT + r + 1, Math.min(RIGHT - r - 1, aimX));
+  }
+  function drop() {
+    if (over || covered || erasing || cooldown > 0) return;
+    clampAim();
+    var b = makeBall(cur, aimX, HOLD_Y);
+    balls.push(b);
+    cur = next; next = pick();
+    cooldown = .45;
+    dirty = true;
+  }
+  function eraseAt(x, y) {
+    var hit = null;
+    balls.forEach(function (b) { if (Math.hypot(b.x - x, b.y - y) <= b.r + 5) hit = b; });
+    erasing = false;
+    if (hit) {
+      balls.splice(balls.indexOf(hit), 1);
+      erasers--;
+      burst(hit.x, hit.y, 14, false);
+      say(hit.x, hit.y, 'Rubbed out!', false);
+      dirty = true;
+    }
+    paintHud();
+  }
+  function toggleEraser() {
+    if (over) return;
+    if (!erasing && !erasers) return;
+    erasing = !erasing;
+    paintHud();
+  }
+  function gameOver() {
+    over = true; erasing = false;
+    $('finalScore').textContent = score;
+    $('finalGrade').textContent = 'Best grade: ' + TIERS[top].tag;
+    $('finalNote').textContent = '“' + CLOSERS[top] + '”';
+    $('over').hidden = false;
+    $('again').focus({ preventScroll: true });
+    save();
+    paintHud();
+  }
+  function setCover(on) {
+    covered = on;
+    $('cover').hidden = !on;
+    document.title = on ? ($('noteTitle').value || 'Class notes') : 'Two Fs Make a D';
+    if (on) {
+      var ta = $('notes');
+      ta.focus({ preventScroll: true });
+      ta.selectionStart = ta.selectionEnd = ta.value.length;
+    } else if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
+  }
+
+  /* ---------- input ---------- */
+  function toLocal(e) {
+    var rect = canvas.getBoundingClientRect();
+    return { x: (e.clientX - rect.left) / scale, y: (e.clientY - rect.top) / scale };
+  }
+  canvas.addEventListener('pointermove', function (e) { aimX = toLocal(e).x; });
+  canvas.addEventListener('pointerdown', function (e) {
+    pointerOn = true;
+    aimX = toLocal(e).x;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+  });
+  canvas.addEventListener('pointerup', function (e) {
+    if (!pointerOn) return;
+    pointerOn = false;
+    var p = toLocal(e);
+    aimX = p.x;
+    if (erasing) eraseAt(p.x, p.y); else drop();
+  });
+  canvas.addEventListener('pointercancel', function () { pointerOn = false; });
+
+  window.addEventListener('keydown', function (e) {
+    var tag = e.target && e.target.tagName;
+    if (covered) {
+      if (e.key === 'Escape') { e.preventDefault(); setCover(false); }
+      return;
+    }
+    if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+    if (e.key === 'Escape' || e.key === 'h' || e.key === 'H') { e.preventDefault(); setCover(true); return; }
+    if (tag === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;
+    if (e.key === 'ArrowLeft' || e.key === 'a') { keys.left = true; e.preventDefault(); }
+    else if (e.key === 'ArrowRight' || e.key === 'd') { keys.right = true; e.preventDefault(); }
+    else if (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 's') { e.preventDefault(); if (!e.repeat) drop(); }
+    else if (e.key === 'e' || e.key === 'E') toggleEraser();
+  });
+  window.addEventListener('keyup', function (e) {
+    if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
+    if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
+  });
+
+  function onClick(id, fn) {
+    $(id).addEventListener('click', function (e) {
+      fn();
+      if (e.detail > 0 && e.currentTarget.blur) e.currentTarget.blur();
+    });
+  }
+  onClick('eraser', toggleEraser);
+  onClick('hide', function () { setCover(true); });
+  onClick('done', function () { setCover(false); });
+  onClick('again', newGame);
+  var armTimer = null;
+  onClick('restart', function () {
+    var btn = $('restart');
+    if (armTimer) {
+      clearTimeout(armTimer); armTimer = null;
+      btn.textContent = 'New term';
+      newGame();
+      return;
+    }
+    btn.textContent = 'Sure? Tap again';
+    armTimer = setTimeout(function () { armTimer = null; btn.textContent = 'New term'; }, 3000);
+  });
+
+  /* ---------- notes cover ---------- */
+  (function () {
+    var saved = null;
+    try { saved = JSON.parse(fetchStore(NOTES_KEY) || 'null'); } catch (e) {}
+    $('notes').value = saved && typeof saved.body === 'string' ? saved.body : 'Topic:\n\nKey points:\n- \n- \n- \n\nQuestions to ask:\n- \n\nHomework:\n- ';
+    if (saved && typeof saved.title === 'string') $('noteTitle').value = saved.title;
+    $('noteDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    function keep() { store(NOTES_KEY, JSON.stringify({ title: $('noteTitle').value, body: $('notes').value })); }
+    $('notes').addEventListener('input', keep);
+    $('noteTitle').addEventListener('input', keep);
+  })();
+
+  /* ---------- drawing ---------- */
+  function readTheme() {
+    var cs = getComputedStyle(document.documentElement);
+    ['ink', 'red', 'soft', 'hi', 'line'].forEach(function (k) { theme[k] = cs.getPropertyValue('--' + k).trim(); });
+  }
+  function resize() {
+    var sw = stage.clientWidth, sh = stage.clientHeight;
+    if (!sw || !sh) return;
+    scale = Math.min(sw / W, sh / H);
+    var cw = W * scale, ch = H * scale, dpr = Math.min(window.devicePixelRatio || 1, 3);
+    canvas.style.width = cw + 'px';
+    canvas.style.height = ch + 'px';
+    canvas.style.left = (sw - cw) / 2 + 'px';
+    canvas.style.top = (sh - ch) / 2 + 'px';
+    canvas.width = Math.round(cw * dpr);
+    canvas.height = Math.round(ch * dpr);
+    ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
+  }
+  function blobPath(r, seed) {
+    ctx.beginPath();
+    for (var i = 0; i <= 28; i++) {
+      var a = i / 28 * 6.2832;
+      var q = r * (1 + .018 * Math.sin(a * 3 + seed) + .012 * Math.sin(a * 5 + seed * 2));
+      if (i) ctx.lineTo(Math.cos(a) * q, Math.sin(a) * q); else ctx.moveTo(Math.cos(a) * q, Math.sin(a) * q);
+    }
+    ctx.closePath();
+  }
+  function starPath(r) {
+    ctx.beginPath();
+    for (var i = 0; i < 10; i++) {
+      var a = -Math.PI / 2 + i * Math.PI / 5, q = i % 2 ? r * .58 : r * 1.04;
+      if (i) ctx.lineTo(Math.cos(a) * q, Math.sin(a) * q); else ctx.moveTo(Math.cos(a) * q, Math.sin(a) * q);
+    }
+    ctx.closePath();
+  }
+  function face(r, cy, mood, blink, spread) {
+    var ex = r * (spread || .28), er = Math.max(1.5, r * .062);
+    ctx.fillStyle = BALL_INK; ctx.strokeStyle = BALL_INK;
+    ctx.lineWidth = Math.max(1.4, r * .045);
+    ctx.lineCap = 'round';
+    [-1, 1].forEach(function (s) {
+      if (blink > 0) {
+        ctx.beginPath(); ctx.moveTo(s * ex - er, cy); ctx.lineTo(s * ex + er, cy); ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.arc(s * ex, cy, er, 0, 6.2832); ctx.fill();
+      }
+    });
+    var mw = r * .2, my = cy + r * .17, bend = mood * r * .17;
+    ctx.beginPath();
+    ctx.moveTo(-mw, my);
+    ctx.quadraticCurveTo(0, my + bend, mw, my);
+    ctx.stroke();
+  }
+  function letter(text, r, y, size) {
+    ctx.fillStyle = BALL_INK;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = (size || r * 1.08) + 'px "Gochi Hand", "Comic Sans MS", cursive';
+    ctx.fillText(text, 0, y);
+  }
+  function drawGrade(t, r, seed, blink) {
+    var tier = TIERS[t];
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = BALL_INK;
+    ctx.lineWidth = Math.max(1.6, r * .05);
+    if (tier.shape === 'star') {
+      blobPath(r, seed);
+      ctx.fillStyle = 'rgba(255, 233, 130, .55)';
+      ctx.fill();
+      starPath(r);
+      ctx.fillStyle = tier.c;
+      ctx.fill(); ctx.stroke();
+      face(r, r * .02, 1, blink, .2);
+      return;
+    }
+    if (tier.shape === 'sun') {
+      for (var i = 0; i < 12; i++) {
+        var a = i / 12 * 6.2832 + seed * .1;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a - .14) * r * .72, Math.sin(a - .14) * r * .72);
+        ctx.lineTo(Math.cos(a) * r * 1.0, Math.sin(a) * r * 1.0);
+        ctx.lineTo(Math.cos(a + .14) * r * .72, Math.sin(a + .14) * r * .72);
+        ctx.fillStyle = '#ffd23f'; ctx.fill(); ctx.stroke();
+      }
+      blobPath(r * .74, seed);
+      ctx.fillStyle = tier.c; ctx.fill(); ctx.stroke();
+      /* Sunglasses, because it is summer. */
+      ctx.fillStyle = BALL_INK;
+      [-1, 1].forEach(function (s) {
+        ctx.beginPath();
+        ctx.ellipse(s * r * .25, -r * .1, r * .2, r * .14, 0, 0, 6.2832);
+        ctx.fill();
+      });
+      ctx.beginPath(); ctx.moveTo(-r * .1, -r * .12); ctx.lineTo(r * .1, -r * .12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r * .24, r * .2); ctx.quadraticCurveTo(0, r * .46, r * .24, r * .2); ctx.stroke();
+      return;
+    }
+    blobPath(r, seed);
+    ctx.fillStyle = tier.c;
+    ctx.fill(); ctx.stroke();
+    ctx.save();
+    ctx.globalAlpha = .35; ctx.lineWidth = Math.max(.8, r * .018);
+    ctx.rotate(.4); blobPath(r * .97, seed + 2); ctx.stroke();
+    ctx.restore();
+    if (tier.shape === 'crown') {
+      var w = r * .58, y0 = -r * .02, y1 = -r * .58;
+      ctx.beginPath();
+      ctx.moveTo(-w, y0); ctx.lineTo(-w * 1.06, y1); ctx.lineTo(-w * .46, y0 - r * .28);
+      ctx.lineTo(0, y1 - r * .12); ctx.lineTo(w * .46, y0 - r * .28); ctx.lineTo(w * 1.06, y1); ctx.lineTo(w, y0);
+      ctx.closePath();
+      ctx.fillStyle = '#ffd23f'; ctx.fill(); ctx.stroke();
+      face(r, r * .28, 1, blink);
+      return;
+    }
+    letter(tier.g, r, -r * .2);
+    face(r, r * .42, tier.mood, blink);
+  }
+  function drawBall(b) {
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.tilt + b.base);
+    var pop = b.pop > 0 ? 1 + .18 * Math.sin(b.pop * Math.PI) : 1;
+    ctx.scale(pop, pop);
+    drawGrade(b.t, b.r, b.seed, b.blink);
+    ctx.restore();
+  }
+  function sketchLine(x1, y1, x2, y2, seed) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    var steps = 10;
+    for (var i = 1; i <= steps; i++) {
+      var f = i / steps, w = i === steps ? 0 : Math.sin(f * 9 + seed) * 1.3;
+      ctx.lineTo(x1 + (x2 - x1) * f + (y2 !== y1 ? w : 0), y1 + (y2 - y1) * f + (x2 !== x1 ? w : 0));
+    }
+    ctx.stroke();
+  }
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.lineCap = 'round';
+
+    /* detention line */
+    var warn = danger > 0;
+    ctx.save();
+    ctx.strokeStyle = theme.red;
+    ctx.lineWidth = warn ? 3 : 2;
+    ctx.globalAlpha = warn && !calm ? .55 + .45 * Math.sin(danger * 12) : .75;
+    ctx.setLineDash([9, 8]);
+    ctx.beginPath(); ctx.moveTo(LEFT, LINE); ctx.lineTo(RIGHT, LINE); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = theme.red;
+    ctx.font = '16px "Patrick Hand", "Comic Sans MS", cursive';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(warn ? 'detention in ' + Math.max(1, Math.ceil(3 - danger)) + '…' : 'detention line', LEFT + 6, LINE - 6);
+
+    /* jar */
+    ctx.strokeStyle = theme.line;
+    ctx.lineWidth = 3;
+    sketchLine(LEFT - 2, 74, LEFT - 2, FLOOR + 3, 1);
+    sketchLine(LEFT - 2, FLOOR + 3, RIGHT + 2, FLOOR + 3, 2);
+    sketchLine(RIGHT + 2, FLOOR + 3, RIGHT + 2, 74, 3);
+
+    /* next up */
+    ctx.fillStyle = theme.soft;
+    ctx.font = '15px "Patrick Hand", "Comic Sans MS", cursive';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText('next', RIGHT - 34, 20);
+    ctx.save();
+    ctx.translate(RIGHT - 16, 20);
+    drawGrade(next, 13, 1, 0);
+    ctx.restore();
+
+    /* the grade in your hand */
+    if (!over && !erasing) {
+      clampAim();
+      ctx.save();
+      ctx.strokeStyle = theme.soft;
+      ctx.globalAlpha = .5;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([2, 7]);
+      ctx.beginPath(); ctx.moveTo(aimX, HOLD_Y + TIERS[cur].r); ctx.lineTo(aimX, FLOOR); ctx.stroke();
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = cooldown > 0 ? .45 : 1;
+      ctx.translate(aimX, HOLD_Y);
+      drawGrade(cur, TIERS[cur].r, 1, 0);
+      ctx.restore();
+    }
+    if (erasing) {
+      ctx.fillStyle = theme.ink;
+      ctx.font = '22px "Gochi Hand", "Comic Sans MS", cursive';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('Tap a grade to rub it out', W / 2, 50);
+    }
+
+    balls.forEach(drawBall);
+
+    bits.forEach(function (p) {
+      ctx.globalAlpha = Math.min(1, p.life * 2);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(p.x, p.y, p.s, p.s);
+    });
+    ctx.globalAlpha = 1;
+
+    floats.forEach(function (f) {
+      var size = f.big ? 27 : 22;
+      ctx.font = size + 'px "Gochi Hand", "Comic Sans MS", cursive';
+      var half = ctx.measureText(f.text).width / 2 + 4;
+      var x = Math.max(half + LEFT, Math.min(RIGHT - half, f.x));
+      var y = Math.max(20, f.y);
+      ctx.globalAlpha = Math.min(1, f.life * 2);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = getBg();
+      ctx.strokeText(f.text, x, y);
+      ctx.fillStyle = theme.red;
+      ctx.fillText(f.text, x, y);
+    });
+    ctx.globalAlpha = 1;
+  }
+  var bgCache = null;
+  function getBg() { return bgCache; }
+
+  /* ---------- loop ---------- */
+  var last = 0, acc = 0;
+  function frame(now) {
+    var dt = Math.min(.05, (now - last) / 1000 || 0);
+    last = now;
+    themeClock -= dt;
+    if (themeClock <= 0) {
+      readTheme();
+      bgCache = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+      themeClock = .5;
+    }
+
+    if (!covered && !over) {
+      if (keys.left) aimX -= 330 * dt;
+      if (keys.right) aimX += 330 * dt;
+      cooldown = Math.max(0, cooldown - dt);
+      sinceMerge += dt;
+      acc += dt;
+      while (acc >= SUB) { step(SUB); acc -= SUB; }
+
+      var high = !erasing && balls.some(function (b) {
+        return b.age > 1.5 && b.y - b.r < LINE && Math.hypot(b.x - b.px, b.y - b.py) < .5;
+      });
+      danger = high ? danger + dt : Math.max(0, danger - dt * 2);
+      if (danger >= 3) gameOver();
+
+      balls.forEach(function (b) {
+        var want = (b.x - b.px) * .35;
+        want = Math.max(-.35, Math.min(.35, want));
+        b.tilt += (want - b.tilt) * .1;
+        if (b.pop > 0) b.pop = Math.max(0, b.pop - dt * 3.5);
+        if (b.blink > 0) b.blink -= dt;
+        b.blinkIn -= dt;
+        if (b.blinkIn <= 0) { b.blink = .12; b.blinkIn = 2 + Math.random() * 6; }
+      });
+      bits.forEach(function (p) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 700 * dt; p.life -= dt; });
+      bits = bits.filter(function (p) { return p.life > 0; });
+      floats.forEach(function (f) { f.life -= dt; if (!calm) f.y -= 26 * dt; });
+      floats = floats.filter(function (f) { return f.life > 0; });
+
+      saveClock -= dt;
+      if (saveClock <= 0) { saveClock = 1; if (dirty) save(); paintHud(); }
+    }
+    if (!covered) render();
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- boot ---------- */
+  if (load()) {
+    if (!balls.length) newGame();
+  } else {
+    newGame();
+  }
+  paintHud();
+  readTheme();
+  bgCache = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+  resize();
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+  else window.addEventListener('resize', resize);
+  window.addEventListener('pagehide', save);
+  requestAnimationFrame(function (t) { last = t; frame(t); });
+})();
+</script>
+</body>
+</html>
