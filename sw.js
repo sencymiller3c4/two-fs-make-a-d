@@ -1,6 +1,6 @@
 /* Network first, so players always get the newest version when online.
    The saved copy only steps in when there is no connection. */
-var CACHE = 'two-fs-v1';
+var CACHE = 'two-fs-v2';
 var CORE = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {

@@ -122,6 +122,14 @@
   }
   .sheet p { margin: 0; }
   #finalMode { color: var(--soft); font-size: 16px; }
+  #finalVs { color: var(--red); }
+  #challenge {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+    background: var(--card); border: 2px dashed var(--red); border-radius: 10px; padding: 8px 10px;
+  }
+  #challengeText { flex: 1 1 160px; min-width: 0; color: var(--ink); font-size: 17px; line-height: 1.25; }
+  #challenge button { padding: 5px 10px; font-size: 16px; }
+  #challengeClose { border: 0; background: none; padding: 2px 6px; font-size: 20px; line-height: 1; color: var(--soft); }
   #shareText {
     width: 100%; height: 8.5em; resize: none; text-align: left;
     font: 16px/1.35 var(--body); color: var(--ink); background: var(--bg);
@@ -188,6 +196,12 @@
         <div class="stat"><small id="bestLabel">Best</small><b id="best">0</b></div>
       </div>
     </div>
+    <div id="challenge" role="status" hidden>
+      <span id="challengeText"></span>
+      <button id="challengeGo" type="button" hidden></button>
+      <button id="challengeShare" type="button" hidden>Send it back</button>
+      <button id="challengeClose" type="button" aria-label="Dismiss challenge">&times;</button>
+    </div>
     <ol id="ladder" aria-label="Grades you have reached"></ol>
     <div id="mode" role="group" aria-label="Game mode">
       <button id="modeFree" type="button" aria-pressed="true">Free play</button>
@@ -210,6 +224,7 @@
         <p id="finalGrade"></p>
         <p id="finalNote"></p>
         <p id="finalMode"></p>
+        <p id="finalVs" hidden></p>
         <button id="shareOver" type="button">Share my score</button>
         <button id="again" type="button">Start a new term</button>
       </div>
@@ -241,7 +256,7 @@
 (function () {
   var W = 400, H = 600, LEFT = 10, RIGHT = 390, FLOOR = 590, LINE = 100, HOLD_Y = 60;
   var GRAVITY = 1500, SUB = 1 / 240, KEY = 'two-fs-game', NOTES_KEY = 'two-fs-notes', BALL_INK = '#1c2450';
-  var DAILY_KEY = 'two-fs-daily', MODE_KEY = 'two-fs-mode', SHARE_URL = 'https://two-fs-make-a-d.netlify.app/';
+  var DAILY_KEY = 'two-fs-daily', MODE_KEY = 'two-fs-mode', TARGET_KEY = 'two-fs-target', SHARE_URL = 'https://two-fs-make-a-d.netlify.app/';
   var EMOJI = ['🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '⭐', '👑', '☀️'];
 
   var TIERS = [
@@ -287,6 +302,8 @@
   var combo = 0, sinceMerge = 9, dirty = false, saveClock = 0, scale = 1, seedN = 1;
   var keys = { left: false, right: false }, theme = {}, themeClock = 0, pointerOn = false;
   var mode = 'free', day = '', rs = 0, bestTop = 0, toastTimer = null;
+  /* A friend's score, read from a shared "beat my score" link: { score, g, d }. */
+  var target = null;
 
   /* ---------- today's challenge: everyone gets the same grades for the day ---------- */
   function today() {
@@ -348,10 +365,15 @@
     $('bestLabel').textContent = mode === 'daily' ? 'Today’s best' : 'Best';
     $('modeFree').setAttribute('aria-pressed', String(mode !== 'daily'));
     $('modeDaily').setAttribute('aria-pressed', String(mode === 'daily'));
+    paintChallenge();
   }
   function addScore(n) {
+    var was = score;
     score += n;
     if (score > best) { best = score; bestTop = top; }
+    if (target && mode === targetMode() && was <= target.score && score > target.score) {
+      toast('You beat your friend’s ' + target.score.toLocaleString() + '! Send it back.');
+    }
     while (score >= nextEraser) {
       nextEraser += 500;
       if (erasers < 3) { erasers++; say(W / 2, 140, 'Eraser earned!', true); }
@@ -543,6 +565,13 @@
     $('finalNote').textContent = '“' + CLOSERS[top] + '”';
     $('finalMode').textContent = mode === 'daily' ? 'Today’s challenge · ' + dayLabel() : 'Free play';
     $('again').textContent = mode === 'daily' ? 'Try today’s challenge again' : 'Start a new term';
+    var vs = $('finalVs');
+    vs.hidden = !(target && mode === targetMode());
+    if (!vs.hidden) {
+      vs.textContent = score > target.score
+        ? 'You beat your friend’s ' + target.score.toLocaleString() + '!'
+        : 'Your friend scored ' + target.score.toLocaleString() + '. Need ' + (target.score - score + 1).toLocaleString() + ' more!';
+    }
     $('over').hidden = false;
     $('again').focus({ preventScroll: true });
     save();
@@ -570,12 +599,58 @@
     if (pts > 0) {
       if (t >= 0) lines.push(TIERS.map(function (x, i) { return i <= t ? EMOJI[i] : '⬜'; }).join(''));
       lines.push(pts.toLocaleString() + ' points' + (t >= 0 ? ' · best grade: ' + gradeName(t) : ''));
-      lines.push('Beat that: ' + SHARE_URL);
+      lines.push('Beat that: ' + challengeLink(pts, t));
     } else {
       lines.push('Can you turn Fs into summer break? ' + SHARE_URL);
     }
     return lines.join('\n');
   }
+  /* ---------- beat-my-score challenges ---------- */
+  function challengeLink(pts, t) {
+    return SHARE_URL + '?beat=' + pts + (t >= 0 ? '&g=' + t : '') + (mode === 'daily' ? '&d=' + day : '');
+  }
+  function targetMode() { return target && target.d ? 'daily' : 'free'; }
+  function cleanTarget(t) {
+    if (!t || typeof t.score !== 'number' || !(t.score > 0) || t.score > 1e7) return null;
+    return {
+      score: Math.floor(t.score),
+      g: validTier(t.g) ? t.g : -1,
+      d: typeof t.d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.d) ? t.d : ''
+    };
+  }
+  /* Returns true when this visit arrived from a friend's challenge link. */
+  function readChallenge() {
+    var q = null;
+    try { q = new URLSearchParams(location.search); } catch (e) {}
+    var fromLink = q && q.has('beat') ? cleanTarget({ score: parseInt(q.get('beat'), 10), g: parseInt(q.get('g'), 10), d: q.get('d') || '' }) : null;
+    if (fromLink) {
+      target = fromLink;
+      store(TARGET_KEY, JSON.stringify(target));
+      try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+      return true;
+    }
+    try { target = cleanTarget(JSON.parse(fetchStore(TARGET_KEY) || 'null')); } catch (e) { target = null; }
+    return false;
+  }
+  function paintChallenge() {
+    var box = $('challenge');
+    box.hidden = !target;
+    if (!target) return;
+    var n = target.score.toLocaleString(), tm = targetMode();
+    var grade = target.g >= 0 ? ' (best grade: ' + (target.g < 6 ? TIERS[target.g].g : TIERS[target.g].tag) + ')' : '';
+    var where = !target.d ? 'in free play'
+      : target.d === day ? 'on today’s challenge'
+      : 'on the ' + new Date(target.d + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' challenge';
+    var beaten = mode === tm && best > target.score;
+    $('challengeText').textContent = beaten
+      ? 'You beat your friend’s ' + n + '! Send your score back to them.'
+      : 'A friend scored ' + n + ' ' + where + grade + '. Can you beat it' + (target.d && target.d !== day ? ' today?' : '?');
+    $('challengeShare').hidden = !beaten;
+    var go = $('challengeGo');
+    go.hidden = mode === tm;
+    go.textContent = tm === 'daily' ? 'Play today’s challenge' : 'Switch to free play';
+  }
+
   function toast(msg) {
     var el = $('toast');
     el.textContent = msg;
@@ -673,6 +748,13 @@
   onClick('shareClose', function () { $('sharebox').hidden = true; });
   onClick('modeFree', function () { setMode('free'); });
   onClick('modeDaily', function () { setMode('daily'); });
+  onClick('challengeGo', function () { setMode(targetMode()); });
+  onClick('challengeShare', share);
+  onClick('challengeClose', function () {
+    target = null;
+    try { localStorage.removeItem(TARGET_KEY); } catch (e) {}
+    paintChallenge();
+  });
   var armTimer = null;
   onClick('restart', function () {
     var btn = $('restart');
@@ -971,6 +1053,8 @@
   /* ---------- boot ---------- */
   day = today();
   if (fetchStore(MODE_KEY) === 'daily') mode = 'daily';
+  /* Opening a friend's link puts you straight into the mode they played. */
+  if (readChallenge()) { mode = targetMode(); store(MODE_KEY, mode); }
   if (load()) {
     if (!balls.length) newGame();
   } else {
