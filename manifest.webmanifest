@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "Two Fs Make a D",
+  "short_name": "Two Fs",
+  "description": "A silent, no-timer merge game where bad grades combine into better ones. Two Fs make a D.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6faff",
+  "theme_color": "#f6faff",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "preview.png", "sizes": "1200x630", "type": "image/png", "form_factor": "wide", "label": "Grades from F up to Summer break" }
+  ]
+}

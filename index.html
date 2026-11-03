@@ -16,6 +16,13 @@
 <meta property="og:image:alt" content="Two Fs Make a D: smiling grade bubbles from F up to a sun in sunglasses">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="canonical" href="https://two-fs-make-a-d.netlify.app/">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#f6faff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1d3a32" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-title" content="Two Fs">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"VideoGame","name":"Two Fs Make a D","url":"https://two-fs-make-a-d.netlify.app/","image":"https://two-fs-make-a-d.netlify.app/preview.png","description":"A silent, no-timer merge game where bad grades combine into better ones.","genre":"Puzzle","gamePlatform":"Web browser","applicationCategory":"Game","operatingSystem":"Any","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gochi+Hand&family=Patrick+Hand&display=swap">
 <style>
@@ -978,5 +985,6 @@
   requestAnimationFrame(function (t) { last = t; frame(t); });
 })();
 </script>
+<script>if ("serviceWorker" in navigator) addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });</script>
 </body>
 </html>
